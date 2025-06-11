@@ -58,6 +58,15 @@
             android:layout_margin="8dp"
             />
 
+        <Button
+            android:id="@+id/flashToggleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔦 Flash"
+            android:backgroundTint="@color/teal_700"
+            android:textColor="@android:color/white"
+            android:layout_margin="8dp"/>
+
     </LinearLayout>
 
     <!-- Slider superpuesto (posición absoluta) -->

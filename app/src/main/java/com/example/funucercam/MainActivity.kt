@@ -44,6 +44,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var camera: androidx.camera.core.Camera
 
+    private var isFlashOn = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -60,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupCaptureButton()
+        setupFlashToggleButton()
     }
 
     private fun initializeCameraExecutor() {
@@ -71,6 +74,18 @@ class MainActivity : AppCompatActivity() {
             sharpenFactor = value
             currentBitmap?.let { bitmap ->
                 updateSharpenedImage(bitmap)
+            }
+        }
+    }
+
+    private fun setupFlashToggleButton() {
+        binding.flashToggleButton.setOnClickListener {
+            if (::camera.isInitialized) {
+                isFlashOn = !isFlashOn
+                camera.cameraControl.enableTorch(isFlashOn)
+                binding.flashToggleButton.text = if (isFlashOn) "🔦 Flash ON" else "🔦 Flash OFF"
+            } else {
+                showToast("La cámara no está lista")
             }
         }
     }
