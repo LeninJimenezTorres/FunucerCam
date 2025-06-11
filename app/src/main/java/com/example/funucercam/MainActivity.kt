@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
+    private lateinit var camera: androidx.camera.core.Camera
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,16 @@ class MainActivity : AppCompatActivity() {
             currentBitmap?.let { bitmap ->
                 updateSharpenedImage(bitmap)
             }
+        }
+
+        binding.sharpenedView.setOnTouchListener { _, event ->
+            val factory = binding.previewView.meteringPointFactory
+            val point = factory.createPoint(event.x, event.y)
+
+            val action = androidx.camera.core.FocusMeteringAction.Builder(point).build()
+            camera.cameraControl.startFocusAndMetering(action)
+
+            true
         }
 
         // Verificar permisos
@@ -105,7 +116,7 @@ class MainActivity : AppCompatActivity() {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                camera = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer
                 )
             } catch (e: Exception) {
