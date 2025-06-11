@@ -1,9 +1,11 @@
 package com.example.funucercam
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Rect
@@ -24,8 +26,13 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.ImageView
 import androidx.camera.core.ImageProxy
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -51,6 +58,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestCameraPermissions()
         }
+
+        setupCaptureButton()
     }
 
     private fun initializeCameraExecutor() {
@@ -153,6 +162,51 @@ class MainActivity : AppCompatActivity() {
                 finish()
             }
         }
+    }
+
+    private fun setupCaptureButton() {
+        binding.captureButton.setOnClickListener {
+            val viewBitmap = getBitmapFromView(binding.sharpenedView)
+            if (viewBitmap != null) {
+                saveBitmapToGallery(viewBitmap)
+            } else {
+                showToast("No se pudo capturar la imagen")
+            }
+        }
+    }
+
+    private fun getBitmapFromView(view: ImageView): Bitmap? {
+        return try {
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            view.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap) {
+        val filename = "captura_${System.currentTimeMillis()}.jpg"
+        val fos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+            }
+            contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)?.let {
+                contentResolver.openOutputStream(it)
+            }
+        } else {
+            val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val image = File(imagesDir, filename)
+            FileOutputStream(image)
+        }
+
+        fos?.use {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
+            showToast("Imagen guardada 📷")
+        } ?: showToast("Error al guardar imagen")
     }
 
     override fun onDestroy() {
