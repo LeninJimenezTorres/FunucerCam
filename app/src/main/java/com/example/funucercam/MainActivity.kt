@@ -3,38 +3,21 @@ package com.example.funucercam
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.ImageFormat
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.os.Build
-import android.os.Bundle
+import android.graphics.*
+import android.os.*
+import android.provider.MediaStore
+import android.util.Size
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.*
+import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.funucercam.databinding.ActivityMainBinding
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import androidx.camera.core.Preview
-import android.util.Size
-import androidx.camera.core.CameraSelector
-import android.widget.Toast
-import com.example.funucercam.databinding.ActivityMainBinding
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import androidx.camera.core.ImageAnalysis
-import android.graphics.YuvImage
-import android.os.Environment
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
-import android.widget.ImageView
-import androidx.camera.core.ImageProxy
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
 
 private enum class FlashMode {
     OFF, ON, AUTO
@@ -48,39 +31,32 @@ class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
-    private lateinit var camera: androidx.camera.core.Camera
-
+    private lateinit var camera: Camera
     private var flashMode = FlashMode.OFF
+    private lateinit var imageCapture: ImageCapture
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        initializeCameraExecutor()
+        cameraExecutor = Executors.newSingleThreadExecutor()
         setupSliderListener()
         setupTouchToFocus()
+        setupCaptureButton()
+        setupFlashToggleButton()
 
         if (allPermissionsGranted()) {
             startCamera()
         } else {
             requestCameraPermissions()
         }
-
-        setupCaptureButton()
-        setupFlashToggleButton()
-    }
-
-    private fun initializeCameraExecutor() {
-        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     private fun setupSliderListener() {
         binding.sharpenSlider.addOnChangeListener { _, value, _ ->
             sharpenFactor = value
-            currentBitmap?.let { bitmap ->
-                updateSharpenedImage(bitmap)
-            }
+            currentBitmap?.let { updateSharpenedImage(it) }
         }
     }
 
@@ -91,8 +67,8 @@ class MainActivity : AppCompatActivity() {
                 FlashMode.ON -> FlashMode.AUTO
                 FlashMode.AUTO -> FlashMode.OFF
             }
-
             updateFlashUI()
+            startCamera() // Re-bindea con el nuevo modo de flash
         }
     }
 
@@ -117,18 +93,89 @@ class MainActivity : AppCompatActivity() {
         binding.sharpenedView.setOnTouchListener { _, event ->
             val factory = binding.previewView.meteringPointFactory
             val point = factory.createPoint(event.x, event.y)
-            val action = androidx.camera.core.FocusMeteringAction.Builder(point).build()
+            val action = FocusMeteringAction.Builder(point).build()
             camera.cameraControl.startFocusAndMetering(action)
             true
         }
     }
 
-    private fun requestCameraPermissions() {
-        ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+    private fun setupCaptureButton() {
+        binding.captureButton.setOnClickListener {
+            capturePhoto()
+        }
     }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    private fun capturePhoto() {
+        if (!::imageCapture.isInitialized) {
+            showToast("Cámara no lista aún")
+            return
+        }
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "captura_${System.currentTimeMillis()}")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FunucerCam")
+            }
+        }
+
+        val contentResolver = contentResolver
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(
+            contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        ).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    showToast("Error al guardar imagen: ${exc.message}")
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    showToast("Imagen guardada 📷")
+                }
+            }
+        )
+    }
+
+    private fun buildImageCapture(): ImageCapture {
+        val flash = when (flashMode) {
+            FlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+            FlashMode.ON -> ImageCapture.FLASH_MODE_ON
+            FlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+        }
+
+        return ImageCapture.Builder()
+            .setTargetRotation(binding.previewView.display.rotation)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .setFlashMode(flash)
+            .build()
+    }
+
+    private fun buildPreview(): Preview {
+        return Preview.Builder()
+            .setTargetResolution(Size(640, 480))
+            .build().also {
+                it.setSurfaceProvider(binding.previewView.surfaceProvider)
+            }
+    }
+
+    private fun buildImageAnalyzer(): ImageAnalysis {
+        return ImageAnalysis.Builder()
+            .setTargetResolution(Size(640, 480))
+            .setTargetRotation(binding.previewView.display.rotation)
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build().also {
+                it.setAnalyzer(cameraExecutor) { imageProxy ->
+                    val bitmap = imageProxy.toBitmap()
+                    currentBitmap = bitmap
+                    updateSharpenedImage(bitmap)
+                    imageProxy.close()
+                }
+            }
     }
 
     private fun updateSharpenedImage(originalBitmap: Bitmap) {
@@ -141,56 +188,31 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val preview = buildPreview()
-            val analyzer = buildImageAnalyzer()
             val selector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
                 cameraProvider.unbindAll()
-                camera = cameraProvider.bindToLifecycle(this, selector, preview, analyzer)
+                imageCapture = buildImageCapture()
+                camera = cameraProvider.bindToLifecycle(
+                    this, selector, buildPreview(), buildImageAnalyzer(), imageCapture
+                )
             } catch (e: Exception) {
                 showToast("Error: ${e.message}")
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun buildPreview(): Preview {
-        return Preview.Builder()
-            .setTargetResolution(Size(640, 480))
-            .build()
-            .also {
-                it.setSurfaceProvider(binding.previewView.surfaceProvider)
-            }
+    private fun requestCameraPermissions() {
+        ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
     }
 
-    private fun buildImageAnalyzer(): ImageAnalysis {
-        return ImageAnalysis.Builder()
-            .setTargetResolution(Size(640, 480))
-            .setTargetRotation(binding.previewView.display.rotation)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build()
-            .also {
-                it.setAnalyzer(cameraExecutor) { imageProxy ->
-                    val bitmap = imageProxy.toBitmap()
-                    currentBitmap = bitmap
-                    updateSharpenedImage(bitmap)
-                    imageProxy.close()
-                }
-            }
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
@@ -202,55 +224,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupCaptureButton() {
-        binding.captureButton.setOnClickListener {
-            currentBitmap?.let { bitmap ->
-                if (flashMode == FlashMode.AUTO) {
-                    // Activar flash por unos segundos
-                    camera.cameraControl.enableTorch(true)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        saveBitmapToGallery(bitmap)
-                        camera.cameraControl.enableTorch(false)
-                    }, 1500) // Puedes ajustar el tiempo si quieres más realismo
-                } else {
-                    saveBitmapToGallery(bitmap)
-                }
-            } ?: showToast("No hay imagen para guardar")
-        }
-    }
-
-    private fun getBitmapFromView(view: ImageView): Bitmap? {
-        return try {
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            view.draw(canvas)
-            bitmap
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun saveBitmapToGallery(bitmap: Bitmap) {
-        val filename = "captura_${System.currentTimeMillis()}.jpg"
-        val fos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-            }
-            contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)?.let {
-                contentResolver.openOutputStream(it)
-            }
-        } else {
-            val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-            val image = File(imagesDir, filename)
-            FileOutputStream(image)
-        }
-
-        fos?.use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
-            showToast("Imagen guardada 📷")
-        } ?: showToast("Error al guardar imagen")
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {
