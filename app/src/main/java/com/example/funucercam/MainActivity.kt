@@ -27,12 +27,18 @@ import android.graphics.Shader
 import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.widget.ImageView
 import androidx.camera.core.ImageProxy
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+
+private enum class FlashMode {
+    OFF, ON, AUTO
+}
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -44,7 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var camera: androidx.camera.core.Camera
 
-    private var isFlashOn = false
+    private var flashMode = FlashMode.OFF
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,12 +86,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupFlashToggleButton() {
         binding.flashToggleButton.setOnClickListener {
-            if (::camera.isInitialized) {
-                isFlashOn = !isFlashOn
-                camera.cameraControl.enableTorch(isFlashOn)
-                binding.flashToggleButton.text = if (isFlashOn) "🔦 Flash ON" else "🔦 Flash OFF"
-            } else {
-                showToast("La cámara no está lista")
+            flashMode = when (flashMode) {
+                FlashMode.OFF -> FlashMode.ON
+                FlashMode.ON -> FlashMode.AUTO
+                FlashMode.AUTO -> FlashMode.OFF
+            }
+
+            updateFlashUI()
+        }
+    }
+
+    private fun updateFlashUI() {
+        when (flashMode) {
+            FlashMode.OFF -> {
+                camera.cameraControl.enableTorch(false)
+                binding.flashToggleButton.text = "🔦 Flash OFF"
+            }
+            FlashMode.ON -> {
+                camera.cameraControl.enableTorch(true)
+                binding.flashToggleButton.text = "🔆 Flash ON"
+            }
+            FlashMode.AUTO -> {
+                camera.cameraControl.enableTorch(false)
+                binding.flashToggleButton.text = "⚡ Flash AUTO"
             }
         }
     }
@@ -181,12 +204,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCaptureButton() {
         binding.captureButton.setOnClickListener {
-            val viewBitmap = getBitmapFromView(binding.sharpenedView)
-            if (viewBitmap != null) {
-                saveBitmapToGallery(viewBitmap)
-            } else {
-                showToast("No se pudo capturar la imagen")
-            }
+            currentBitmap?.let { bitmap ->
+                if (flashMode == FlashMode.AUTO) {
+                    // Activar flash por unos segundos
+                    camera.cameraControl.enableTorch(true)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        saveBitmapToGallery(bitmap)
+                        camera.cameraControl.enableTorch(false)
+                    }, 1500) // Puedes ajustar el tiempo si quieres más realismo
+                } else {
+                    saveBitmapToGallery(bitmap)
+                }
+            } ?: showToast("No hay imagen para guardar")
         }
     }
 
