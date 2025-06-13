@@ -7,6 +7,7 @@ import android.graphics.*
 import android.os.*
 import android.provider.MediaStore
 import android.util.Size
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -16,8 +17,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.funucercam.databinding.ActivityMainBinding
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 private enum class FlashMode {
     OFF, ON, AUTO
@@ -68,7 +71,7 @@ class MainActivity : AppCompatActivity() {
                 FlashMode.AUTO -> FlashMode.OFF
             }
             updateFlashUI()
-            startCamera() // Re-bindea con el nuevo modo de flash
+            startCamera()
         }
     }
 
@@ -101,44 +104,83 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCaptureButton() {
         binding.captureButton.setOnClickListener {
-            capturePhoto()
+            captureFilteredWithFlash()
         }
     }
 
-    private fun capturePhoto() {
-        if (!::imageCapture.isInitialized) {
-            showToast("Cámara no lista aún")
-            return
-        }
+    private fun captureFilteredWithFlash() {
+        if (!::camera.isInitialized) return
 
+        // Define punto central para enfocar
+        val factory = binding.previewView.meteringPointFactory
+        val centerPoint = factory.createPoint(
+            binding.previewView.width / 2f,
+            binding.previewView.height / 2f
+        )
+
+        val focusAction = FocusMeteringAction.Builder(centerPoint)
+            .setAutoCancelDuration(2, TimeUnit.SECONDS)
+            .build()
+
+        // Iniciar enfoque
+        val future = camera.cameraControl.startFocusAndMetering(focusAction)
+
+        future.addListener({
+            val result = future.get()
+            if (result.isFocusSuccessful) {
+                // Flash tipo linterna antes de capturar
+                if (flashMode == FlashMode.ON || flashMode == FlashMode.AUTO) {
+                    camera.cameraControl.enableTorch(true)
+                }
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val filteredBitmap = getBitmapFromView(binding.sharpenedView)
+                    if (filteredBitmap != null) {
+                        saveBitmapToGallery(filteredBitmap)
+                    } else {
+                        showToast("No se pudo obtener imagen filtrada")
+                    }
+
+                    if (flashMode == FlashMode.ON || flashMode == FlashMode.AUTO) {
+                        camera.cameraControl.enableTorch(false)
+                    }
+                }, 200) // breve delay para iluminación tras enfoque
+            } else {
+                showToast("❌ Falló el enfoque")
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun getBitmapFromView(view: ImageView): Bitmap? {
+        return try {
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            view.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap) {
+        val filename = "captura_${System.currentTimeMillis()}.jpg"
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "captura_${System.currentTimeMillis()}")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FunucerCam")
             }
         }
 
-        val contentResolver = contentResolver
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(
-            contentResolver,
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            contentValues
-        ).build()
-
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(this),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    showToast("Error al guardar imagen: ${exc.message}")
-                }
-
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    showToast("Imagen guardada 📷")
-                }
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        uri?.let {
+            val stream: OutputStream? = resolver.openOutputStream(it)
+            stream?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
+                showToast("Imagen guardada 📷")
             }
-        )
+        } ?: showToast("Error al guardar imagen")
     }
 
     private fun buildImageCapture(): ImageCapture {
