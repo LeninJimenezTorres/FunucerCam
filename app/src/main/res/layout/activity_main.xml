@@ -60,7 +60,7 @@
 
     </LinearLayout>
 
-    <!-- Slider superpuesto (posición absoluta) -->
+    <!-- Slider de nitidez -->
     <com.google.android.material.slider.Slider
         android:id="@+id/sharpenSlider"
         android:layout_width="0dp"
@@ -72,9 +72,9 @@
         app:layout_constraintWidth_percent="0.65"
         app:layout_constraintBottom_toTopOf="@id/bottomMenu"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="0.75"/> <!-- 25% desde el bottom (1 - 0.25 = 0.75) -->
+        app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Slider de temperatura -->
     <com.google.android.material.slider.Slider
         android:id="@+id/temperatureSlider"
         android:layout_width="0dp"
@@ -86,9 +86,9 @@
         app:layout_constraintWidth_percent="0.65"
         app:layout_constraintBottom_toTopOf="@id/sharpenSlider"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="0.75"/>
+        app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Slider de exposición -->
     <com.google.android.material.slider.Slider
         android:id="@+id/exposureSlider"
         android:layout_width="0dp"
@@ -98,9 +98,8 @@
         android:valueTo="3f"
         android:value="0f"
         app:layout_constraintWidth_percent="0.65"
-        app:layout_constraintBottom_toTopOf="@id/sharpenSlider"
+        app:layout_constraintBottom_toTopOf="@id/temperatureSlider"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="0.75"/>
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
