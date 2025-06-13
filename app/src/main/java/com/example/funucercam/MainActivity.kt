@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private var temperatureValue: Float = 0f
     private var sharpenValue: Float = 5f
     private var baseBitmap: Bitmap? = null
+    private var saturationValue: Float = 1f
 
     private lateinit var camera: androidx.camera.core.Camera
 
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         initializeCameraExecutor()
         setupSliderListener()
         setupTemperatureSlider()
+        setupSaturationSlider()
         setupTouchToFocus()
 
         if (allPermissionsGranted()) {
@@ -112,17 +114,18 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun updateSharpenedImage(originalBitmap: Bitmap) {
-        baseBitmap?.let { original ->
-            val sharpened = applySharpenFilter(original, sharpenValue)
-            val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+    private fun applySaturationFilter(bitmap: Bitmap, saturation: Float): Bitmap {
+        val bmp = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(bmp)
+        val paint = Paint()
 
-            currentBitmap = warmed
-            runOnUiThread {
-                binding.sharpenedView.setImageBitmap(warmed)
-                binding.sharpenedView.rotation = 90f
-            }
-        }
+        val colorMatrix = ColorMatrix()
+        colorMatrix.setSaturation(saturation.coerceIn(0f, 2f))
+
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        canvas.drawBitmap(bmp, 0f, 0f, paint)
+
+        return bmp
     }
 
     private fun startCamera() {
@@ -176,12 +179,20 @@ class MainActivity : AppCompatActivity() {
         baseBitmap?.let { original ->
             val sharpened = applySharpenFilter(original, sharpenValue)
             val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+            val saturated = applySaturationFilter(warmed, saturationValue)
 
-            currentBitmap = warmed
+            currentBitmap = saturated
             runOnUiThread {
-                binding.sharpenedView.setImageBitmap(warmed)
+                binding.sharpenedView.setImageBitmap(saturated)
                 binding.sharpenedView.rotation = 90f
             }
+        }
+    }
+
+    private fun setupSaturationSlider() {
+        binding.saturationSlider.addOnChangeListener { _, value, _ ->
+            saturationValue = value
+            updateFilteredImage()
         }
     }
 

@@ -60,17 +60,33 @@
 
     </LinearLayout>
 
-    <!-- Slider de nitidez -->
+
+
+    <!-- Slider de saturación -->
     <com.google.android.material.slider.Slider
-        android:id="@+id/sharpenSlider"
+        android:id="@+id/saturationSlider"
         android:layout_width="0dp"
         android:layout_height="40dp"
         android:layout_marginBottom="8dp"
         android:valueFrom="0f"
-        android:valueTo="10f"
-        android:value="5f"
+        android:valueTo="2f"
+        android:value="1f"
         app:layout_constraintWidth_percent="0.65"
-        app:layout_constraintBottom_toTopOf="@id/bottomMenu"
+        app:layout_constraintBottom_toTopOf="@id/exposureSlider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Slider de exposición -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/exposureSlider"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="8dp"
+        android:valueFrom="-3f"
+        android:valueTo="3f"
+        android:value="0f"
+        app:layout_constraintWidth_percent="0.65"
+        app:layout_constraintBottom_toTopOf="@id/temperatureSlider"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
@@ -88,17 +104,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Slider de exposición -->
+    <!-- Slider de nitidez -->
     <com.google.android.material.slider.Slider
-        android:id="@+id/exposureSlider"
+        android:id="@+id/sharpenSlider"
         android:layout_width="0dp"
         android:layout_height="40dp"
         android:layout_marginBottom="8dp"
-        android:valueFrom="-3f"
-        android:valueTo="3f"
-        android:value="0f"
+        android:valueFrom="0f"
+        android:valueTo="10f"
+        android:value="5f"
         app:layout_constraintWidth_percent="0.65"
-        app:layout_constraintBottom_toTopOf="@id/temperatureSlider"
+        app:layout_constraintBottom_toTopOf="@id/bottomMenu"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
