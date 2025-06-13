@@ -6,8 +6,11 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageFormat
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -22,8 +25,6 @@ import android.util.Size
 import androidx.camera.core.CameraSelector
 import android.widget.Toast
 import com.example.funucercam.databinding.ActivityMainBinding
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
@@ -42,6 +43,10 @@ class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
+    private var temperatureValue: Float = 0f
+    private var sharpenValue: Float = 5f
+    private var baseBitmap: Bitmap? = null
+
     private lateinit var camera: androidx.camera.core.Camera
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,6 +56,7 @@ class MainActivity : AppCompatActivity() {
 
         initializeCameraExecutor()
         setupSliderListener()
+        setupTemperatureSlider()
         setupTouchToFocus()
 
         if (allPermissionsGranted()) {
@@ -83,10 +89,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupSliderListener() {
         binding.sharpenSlider.addOnChangeListener { _, value, _ ->
-            sharpenFactor = value
-            currentBitmap?.let { bitmap ->
-                updateSharpenedImage(bitmap)
-            }
+            sharpenValue = value
+            updateFilteredImage()
         }
     }
 
@@ -109,10 +113,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateSharpenedImage(originalBitmap: Bitmap) {
-        val sharpened = applySharpenFilter(originalBitmap, sharpenFactor)
-        runOnUiThread {
-            binding.sharpenedView.setImageBitmap(sharpened)
-            binding.sharpenedView.rotation = 90f
+        baseBitmap?.let { original ->
+            val sharpened = applySharpenFilter(original, sharpenValue)
+            val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+
+            currentBitmap = warmed
+            runOnUiThread {
+                binding.sharpenedView.setImageBitmap(warmed)
+                binding.sharpenedView.rotation = 90f
+            }
         }
     }
 
@@ -135,6 +144,47 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun applyTemperatureFilter(bitmap: Bitmap, temperature: Float): Bitmap {
+        val bmp = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(bmp)
+        val paint = Paint()
+
+        val red = (temperature / 100f).coerceIn(-1f, 1f)
+        val blue = (-temperature / 100f).coerceIn(-1f, 1f)
+
+        val colorMatrix = ColorMatrix(floatArrayOf(
+            1f + red, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f + blue, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        canvas.drawBitmap(bmp, 0f, 0f, paint)
+
+        return bmp
+    }
+
+    private fun setupTemperatureSlider() {
+        binding.temperatureSlider.addOnChangeListener { _, value, _ ->
+            temperatureValue = value
+            updateFilteredImage()
+        }
+    }
+
+    private fun updateFilteredImage() {
+        baseBitmap?.let { original ->
+            val sharpened = applySharpenFilter(original, sharpenValue)
+            val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+
+            currentBitmap = warmed
+            runOnUiThread {
+                binding.sharpenedView.setImageBitmap(warmed)
+                binding.sharpenedView.rotation = 90f
+            }
+        }
+    }
+
     private fun buildPreview(): Preview {
         return Preview.Builder()
             .setTargetResolution(Size(640, 480))
@@ -153,8 +203,8 @@ class MainActivity : AppCompatActivity() {
             .also {
                 it.setAnalyzer(cameraExecutor) { imageProxy ->
                     val bitmap = imageProxy.toBitmap()
-                    currentBitmap = bitmap
-                    updateSharpenedImage(bitmap)
+                    baseBitmap = bitmap          // Guarda imagen original
+                    updateFilteredImage()        // Aplica filtros actuales
                     imageProxy.close()
                 }
             }
