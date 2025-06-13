@@ -62,6 +62,21 @@ class MainActivity : AppCompatActivity() {
         setupCaptureButton()
     }
 
+    private fun setupExposureSlider() {
+        val exposureState = camera.cameraInfo.exposureState
+        val range = exposureState.exposureCompensationRange
+        val current = exposureState.exposureCompensationIndex
+
+        binding.exposureSlider.valueFrom = range.lower.toFloat()
+        binding.exposureSlider.valueTo = range.upper.toFloat()
+        binding.exposureSlider.value = current.toFloat()
+
+        binding.exposureSlider.addOnChangeListener { _, value, _ ->
+            val exposureIndex = value.toInt()
+            camera.cameraControl.setExposureCompensationIndex(exposureIndex)
+        }
+    }
+
     private fun initializeCameraExecutor() {
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
@@ -113,6 +128,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, selector, preview, analyzer)
+                setupExposureSlider()
             } catch (e: Exception) {
                 showToast("Error: ${e.message}")
             }
