@@ -29,6 +29,7 @@ import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
 import android.provider.MediaStore
+import android.view.KeyEvent
 import android.widget.ImageView
 import androidx.camera.core.ImageProxy
 import java.io.ByteArrayOutputStream
@@ -68,6 +69,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupCaptureButton()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                // Capturar imagen cuando se presiona el botón de bajar volumen
+                val viewBitmap = getBitmapFromView(binding.sharpenedView)
+                if (viewBitmap != null) {
+                    saveBitmapToGallery(viewBitmap)
+                } else {
+                    showToast("No se pudo capturar la imagen")
+                }
+                true // Indica que hemos manejado el evento
+            }
+            else -> super.onKeyDown(keyCode, event)
+        }
     }
 
     private fun setupExposureSlider() {
