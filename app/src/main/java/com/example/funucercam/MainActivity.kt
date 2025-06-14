@@ -14,33 +14,39 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.*
+import android.provider.MediaStore
+import android.util.Size
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.funucercam.databinding.ActivityMainBinding
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview
-import android.util.Size
 import androidx.camera.core.CameraSelector
-import android.widget.Toast
-import com.example.funucercam.databinding.ActivityMainBinding
 import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
-import android.provider.MediaStore
 import android.view.KeyEvent
 import android.widget.ImageView
 import androidx.camera.core.ImageProxy
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
+
+private enum class FlashMode {
+    OFF, ON, AUTO
+}
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
     private var currentBitmap: Bitmap? = null
-    private var sharpenFactor: Float = 5f
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
@@ -50,6 +56,9 @@ class MainActivity : AppCompatActivity() {
     private var saturationValue: Float = 1f
 
     private lateinit var camera: androidx.camera.core.Camera
+    // private lateinit var camera: Camera
+    private var flashMode = FlashMode.OFF
+    private lateinit var imageCapture: ImageCapture
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,6 +70,8 @@ class MainActivity : AppCompatActivity() {
         setupTemperatureSlider()
         setupSaturationSlider()
         setupTouchToFocus()
+        setupCaptureButton()
+        setupFlashToggleButton()
 
         if (allPermissionsGranted()) {
             startCamera()
@@ -74,14 +85,8 @@ class MainActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                // Capturar imagen cuando se presiona el botón de bajar volumen
-                val viewBitmap = getBitmapFromView(binding.sharpenedView)
-                if (viewBitmap != null) {
-                    saveBitmapToGallery(viewBitmap)
-                } else {
-                    showToast("No se pudo capturar la imagen")
-                }
-                true // Indica que hemos manejado el evento
+                captureFilteredWithFlash()
+                true
             }
             else -> super.onKeyDown(keyCode, event)
         }
@@ -113,11 +118,40 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupFlashToggleButton() {
+        binding.flashToggleButton.setOnClickListener {
+            flashMode = when (flashMode) {
+                FlashMode.OFF -> FlashMode.ON
+                FlashMode.ON -> FlashMode.AUTO
+                FlashMode.AUTO -> FlashMode.OFF
+            }
+            updateFlashUI()
+            startCamera()
+        }
+    }
+
+    private fun updateFlashUI() {
+        when (flashMode) {
+            FlashMode.OFF -> {
+                camera.cameraControl.enableTorch(false)
+                binding.flashToggleButton.text = "🔦 Flash OFF"
+            }
+            FlashMode.ON -> {
+                camera.cameraControl.enableTorch(true)
+                binding.flashToggleButton.text = "🔆 Flash ON"
+            }
+            FlashMode.AUTO -> {
+                camera.cameraControl.enableTorch(false)
+                binding.flashToggleButton.text = "⚡ Flash AUTO"
+            }
+        }
+    }
+
     private fun setupTouchToFocus() {
         binding.sharpenedView.setOnTouchListener { _, event ->
             val factory = binding.previewView.meteringPointFactory
             val point = factory.createPoint(event.x, event.y)
-            val action = androidx.camera.core.FocusMeteringAction.Builder(point).build()
+            val action = FocusMeteringAction.Builder(point).build()
             camera.cameraControl.startFocusAndMetering(action)
             true
         }
@@ -145,6 +179,58 @@ class MainActivity : AppCompatActivity() {
         return bmp
     }
 
+    private fun captureFilteredWithFlash() {
+        if (!::imageCapture.isInitialized) return
+
+        imageCapture.flashMode = when (flashMode) {
+            FlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+            FlashMode.ON -> ImageCapture.FLASH_MODE_ON
+            FlashMode.AUTO -> ImageCapture.FLASH_MODE_ON
+        }
+
+        val factory = binding.previewView.meteringPointFactory
+        val centerPoint = factory.createPoint(
+            binding.previewView.width / 2f,
+            binding.previewView.height / 2f
+        )
+
+        val focusAction = FocusMeteringAction.Builder(centerPoint)
+            .setAutoCancelDuration(1, TimeUnit.SECONDS)
+            .build()
+
+        camera.cameraControl.startFocusAndMetering(focusAction)
+            .addListener({
+                Handler(Looper.getMainLooper()).postDelayed({
+                    captureAndProcessFrame()
+                }, 200)
+            }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun captureAndProcessFrame() {
+        imageCapture.takePicture(
+            cameraExecutor,
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    val rawBitmap = image.toBitmap()
+                    image.close()
+
+                    val filtered = applyAllFilters(rawBitmap)
+                    saveBitmapToGallery(filtered)
+                }
+
+                override fun onError(exc: ImageCaptureException) {
+                    showToast("Error al capturar: ${exc.message}")
+                }
+            }
+        )
+    }
+
+    private fun applyAllFilters(original: Bitmap): Bitmap {
+        val sharpened = applySharpenFilter(original, sharpenValue)
+        val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+        return applySaturationFilter(warmed, saturationValue)
+    }
+
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
@@ -156,12 +242,25 @@ class MainActivity : AppCompatActivity() {
 
             try {
                 cameraProvider.unbindAll()
-                camera = cameraProvider.bindToLifecycle(this, selector, preview, analyzer)
+                imageCapture = buildImageCapture()
+                camera = cameraProvider.bindToLifecycle(this, selector, preview, analyzer, imageCapture)
                 setupExposureSlider()
+                updateFlashUI()
             } catch (e: Exception) {
                 showToast("Error: ${e.message}")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun buildImageCapture(): ImageCapture {
+        return ImageCapture.Builder()
+            .setTargetRotation(binding.previewView.display.rotation)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .build().also {
+                imageCapture = it
+            }
+        //.setFlashMode(flash)
+        //.build()
     }
 
     private fun applyTemperatureFilter(bitmap: Bitmap, temperature: Float): Bitmap {
@@ -239,7 +338,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -260,12 +365,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCaptureButton() {
         binding.captureButton.setOnClickListener {
-            val viewBitmap = getBitmapFromView(binding.sharpenedView)
-            if (viewBitmap != null) {
-                saveBitmapToGallery(viewBitmap)
-            } else {
-                showToast("No se pudo capturar la imagen")
-            }
+            captureFilteredWithFlash()
         }
     }
 
