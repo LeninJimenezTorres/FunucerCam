@@ -7,7 +7,6 @@ import android.graphics.*
 import android.os.*
 import android.provider.MediaStore
 import android.util.Size
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -109,9 +108,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun captureFilteredWithFlash() {
-        if (!::camera.isInitialized) return
+        if (!::imageCapture.isInitialized) return
 
-        // Define punto central para enfocar
+        imageCapture.flashMode = when (flashMode) {
+            FlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+            FlashMode.ON -> ImageCapture.FLASH_MODE_ON
+            FlashMode.AUTO -> ImageCapture.FLASH_MODE_ON
+        }
+
         val factory = binding.previewView.meteringPointFactory
         val centerPoint = factory.createPoint(
             binding.previewView.width / 2f,
@@ -119,47 +123,38 @@ class MainActivity : AppCompatActivity() {
         )
 
         val focusAction = FocusMeteringAction.Builder(centerPoint)
-            .setAutoCancelDuration(2, TimeUnit.SECONDS)
+            .setAutoCancelDuration(1, TimeUnit.SECONDS)
             .build()
 
-        // Iniciar enfoque
-        val future = camera.cameraControl.startFocusAndMetering(focusAction)
-
-        future.addListener({
-            val result = future.get()
-            if (result.isFocusSuccessful) {
-                // Flash tipo linterna antes de capturar
-                if (flashMode == FlashMode.ON || flashMode == FlashMode.AUTO) {
-                    camera.cameraControl.enableTorch(true)
-                }
-
+        camera.cameraControl.startFocusAndMetering(focusAction)
+            .addListener({
                 Handler(Looper.getMainLooper()).postDelayed({
-                    val filteredBitmap = getBitmapFromView(binding.sharpenedView)
-                    if (filteredBitmap != null) {
-                        saveBitmapToGallery(filteredBitmap)
-                    } else {
-                        showToast("No se pudo obtener imagen filtrada")
-                    }
-
-                    if (flashMode == FlashMode.ON || flashMode == FlashMode.AUTO) {
-                        camera.cameraControl.enableTorch(false)
-                    }
-                }, 200) // breve delay para iluminación tras enfoque
-            } else {
-                showToast("❌ Falló el enfoque")
-            }
-        }, ContextCompat.getMainExecutor(this))
+                    captureAndProcessFrame()
+                }, 200)
+            }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun getBitmapFromView(view: ImageView): Bitmap? {
-        return try {
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            view.draw(canvas)
-            bitmap
-        } catch (e: Exception) {
-            null
-        }
+    private fun captureAndProcessFrame() {
+        imageCapture.takePicture(
+            cameraExecutor,
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    val rawBitmap = image.toBitmap()
+                    image.close()
+
+                    val filtered = applyAllFilters(rawBitmap)
+                    saveBitmapToGallery(filtered)
+                }
+
+                override fun onError(exc: ImageCaptureException) {
+                    showToast("Error al capturar: ${exc.message}")
+                }
+            }
+        )
+    }
+
+    private fun applyAllFilters(original: Bitmap): Bitmap {
+        return applySharpenFilter(original, sharpenFactor)
     }
 
     private fun saveBitmapToGallery(bitmap: Bitmap) {
@@ -193,8 +188,11 @@ class MainActivity : AppCompatActivity() {
         return ImageCapture.Builder()
             .setTargetRotation(binding.previewView.display.rotation)
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .setFlashMode(flash)
-            .build()
+            .build().also {
+                imageCapture = it
+            }
+            //.setFlashMode(flash)
+            //.build()
     }
 
     private fun buildPreview(): Preview {
@@ -240,6 +238,7 @@ class MainActivity : AppCompatActivity() {
                 camera = cameraProvider.bindToLifecycle(
                     this, selector, buildPreview(), buildImageAnalyzer(), imageCapture
                 )
+                updateFlashUI()
             } catch (e: Exception) {
                 showToast("Error: ${e.message}")
             }
@@ -267,7 +266,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onDestroy() {
