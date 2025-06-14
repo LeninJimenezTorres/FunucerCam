@@ -14,20 +14,17 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
-import android.graphics.*
 import android.os.*
 import android.provider.MediaStore
 import android.util.Size
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
-import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.funucercam.databinding.ActivityMainBinding
 import java.io.ByteArrayOutputStream
-import java.io.OutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview
@@ -50,7 +47,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
     private var currentBitmap: Bitmap? = null
-    private var sharpenFactor: Float = 5f
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
@@ -69,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // cameraExecutor = Executors.newSingleThreadExecutor()
+        initializeCameraExecutor()
         setupSliderListener()
         setupTemperatureSlider()
         setupSaturationSlider()
@@ -89,14 +85,8 @@ class MainActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                // Capturar imagen cuando se presiona el botón de bajar volumen
-                val viewBitmap = getBitmapFromView(binding.sharpenedView)
-                if (viewBitmap != null) {
-                    saveBitmapToGallery(viewBitmap)
-                } else {
-                    showToast("No se pudo capturar la imagen")
-                }
-                true // Indica que hemos manejado el evento
+                captureFilteredWithFlash()
+                true
             }
             else -> super.onKeyDown(keyCode, event)
         }
