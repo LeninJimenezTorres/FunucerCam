@@ -3,6 +3,17 @@ package com.example.funucercam
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.ImageFormat
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Rect
+import android.os.Build
+import android.os.Bundle
 import android.graphics.*
 import android.os.*
 import android.provider.MediaStore
@@ -19,6 +30,16 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import androidx.camera.core.Preview
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import android.graphics.YuvImage
+import android.os.Environment
+import android.view.KeyEvent
+import android.widget.ImageView
+import androidx.camera.core.ImageProxy
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
 private enum class FlashMode {
@@ -33,7 +54,13 @@ class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_PERMISSIONS = 100
     private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
 
-    private lateinit var camera: Camera
+    private var temperatureValue: Float = 0f
+    private var sharpenValue: Float = 5f
+    private var baseBitmap: Bitmap? = null
+    private var saturationValue: Float = 1f
+
+    private lateinit var camera: androidx.camera.core.Camera
+    // private lateinit var camera: Camera
     private var flashMode = FlashMode.OFF
     private lateinit var imageCapture: ImageCapture
 
@@ -42,8 +69,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
+        // cameraExecutor = Executors.newSingleThreadExecutor()
         setupSliderListener()
+        setupTemperatureSlider()
+        setupSaturationSlider()
         setupTouchToFocus()
         setupCaptureButton()
         setupFlashToggleButton()
@@ -53,12 +82,49 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestCameraPermissions()
         }
+
+        setupCaptureButton()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                // Capturar imagen cuando se presiona el botón de bajar volumen
+                val viewBitmap = getBitmapFromView(binding.sharpenedView)
+                if (viewBitmap != null) {
+                    saveBitmapToGallery(viewBitmap)
+                } else {
+                    showToast("No se pudo capturar la imagen")
+                }
+                true // Indica que hemos manejado el evento
+            }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    private fun setupExposureSlider() {
+        val exposureState = camera.cameraInfo.exposureState
+        val range = exposureState.exposureCompensationRange
+        val current = exposureState.exposureCompensationIndex
+
+        binding.exposureSlider.valueFrom = range.lower.toFloat()
+        binding.exposureSlider.valueTo = range.upper.toFloat()
+        binding.exposureSlider.value = current.toFloat()
+
+        binding.exposureSlider.addOnChangeListener { _, value, _ ->
+            val exposureIndex = value.toInt()
+            camera.cameraControl.setExposureCompensationIndex(exposureIndex)
+        }
+    }
+
+    private fun initializeCameraExecutor() {
+        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     private fun setupSliderListener() {
         binding.sharpenSlider.addOnChangeListener { _, value, _ ->
-            sharpenFactor = value
-            currentBitmap?.let { updateSharpenedImage(it) }
+            sharpenValue = value
+            updateFilteredImage()
         }
     }
 
@@ -101,10 +167,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupCaptureButton() {
-        binding.captureButton.setOnClickListener {
-            captureFilteredWithFlash()
-        }
+    private fun requestCameraPermissions() {
+        ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+    }
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun applySaturationFilter(bitmap: Bitmap, saturation: Float): Bitmap {
+        val bmp = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(bmp)
+        val paint = Paint()
+
+        val colorMatrix = ColorMatrix()
+        colorMatrix.setSaturation(saturation.coerceIn(0f, 2f))
+
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        canvas.drawBitmap(bmp, 0f, 0f, paint)
+
+        return bmp
     }
 
     private fun captureFilteredWithFlash() {
@@ -154,51 +236,97 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyAllFilters(original: Bitmap): Bitmap {
-        return applySharpenFilter(original, sharpenFactor)
+        val sharpened = applySharpenFilter(original, sharpenValue)
+        val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+        return applySaturationFilter(warmed, saturationValue)
     }
 
-    private fun saveBitmapToGallery(bitmap: Bitmap) {
-        val filename = "captura_${System.currentTimeMillis()}.jpg"
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FunucerCam")
-            }
-        }
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
-        val resolver = contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        uri?.let {
-            val stream: OutputStream? = resolver.openOutputStream(it)
-            stream?.use {
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
-                showToast("Imagen guardada 📷")
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val preview = buildPreview()
+            val analyzer = buildImageAnalyzer()
+            val selector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider.unbindAll()
+                imageCapture = buildImageCapture()
+                camera = cameraProvider.bindToLifecycle(this, selector, preview, analyzer, imageCapture)
+                setupExposureSlider()
+                updateFlashUI()
+            } catch (e: Exception) {
+                showToast("Error: ${e.message}")
             }
-        } ?: showToast("Error al guardar imagen")
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun buildImageCapture(): ImageCapture {
-        val flash = when (flashMode) {
-            FlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
-            FlashMode.ON -> ImageCapture.FLASH_MODE_ON
-            FlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
-        }
-
         return ImageCapture.Builder()
             .setTargetRotation(binding.previewView.display.rotation)
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .build().also {
                 imageCapture = it
             }
-            //.setFlashMode(flash)
-            //.build()
+        //.setFlashMode(flash)
+        //.build()
+    }
+
+    private fun applyTemperatureFilter(bitmap: Bitmap, temperature: Float): Bitmap {
+        val bmp = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(bmp)
+        val paint = Paint()
+
+        val red = (temperature / 100f).coerceIn(-1f, 1f)
+        val blue = (-temperature / 100f).coerceIn(-1f, 1f)
+
+        val colorMatrix = ColorMatrix(floatArrayOf(
+            1f + red, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f + blue, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        canvas.drawBitmap(bmp, 0f, 0f, paint)
+
+        return bmp
+    }
+
+    private fun setupTemperatureSlider() {
+        binding.temperatureSlider.addOnChangeListener { _, value, _ ->
+            temperatureValue = value
+            updateFilteredImage()
+        }
+    }
+
+    private fun updateFilteredImage() {
+        baseBitmap?.let { original ->
+            val sharpened = applySharpenFilter(original, sharpenValue)
+            val warmed = applyTemperatureFilter(sharpened, temperatureValue)
+            val saturated = applySaturationFilter(warmed, saturationValue)
+
+            currentBitmap = saturated
+            runOnUiThread {
+                binding.sharpenedView.setImageBitmap(saturated)
+                binding.sharpenedView.rotation = 90f
+            }
+        }
+    }
+
+    private fun setupSaturationSlider() {
+        binding.saturationSlider.addOnChangeListener { _, value, _ ->
+            saturationValue = value
+            updateFilteredImage()
+        }
     }
 
     private fun buildPreview(): Preview {
         return Preview.Builder()
             .setTargetResolution(Size(640, 480))
-            .build().also {
+            .build()
+            .also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
     }
@@ -208,52 +336,32 @@ class MainActivity : AppCompatActivity() {
             .setTargetResolution(Size(640, 480))
             .setTargetRotation(binding.previewView.display.rotation)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build().also {
+            .build()
+            .also {
                 it.setAnalyzer(cameraExecutor) { imageProxy ->
                     val bitmap = imageProxy.toBitmap()
-                    currentBitmap = bitmap
-                    updateSharpenedImage(bitmap)
+                    baseBitmap = bitmap          // Guarda imagen original
+                    updateFilteredImage()        // Aplica filtros actuales
                     imageProxy.close()
                 }
             }
     }
 
-    private fun updateSharpenedImage(originalBitmap: Bitmap) {
-        val sharpened = applySharpenFilter(originalBitmap, sharpenFactor)
-        runOnUiThread {
-            binding.sharpenedView.setImageBitmap(sharpened)
-            binding.sharpenedView.rotation = 90f
+    private fun showToast(message: String) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            val selector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                cameraProvider.unbindAll()
-                imageCapture = buildImageCapture()
-                camera = cameraProvider.bindToLifecycle(
-                    this, selector, buildPreview(), buildImageAnalyzer(), imageCapture
-                )
-                updateFlashUI()
-            } catch (e: Exception) {
-                showToast("Error: ${e.message}")
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun requestCameraPermissions() {
-        ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
-    }
-
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
@@ -265,14 +373,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showToast(message: String) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-        } else {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-            }
+    private fun setupCaptureButton() {
+        binding.captureButton.setOnClickListener {
+            captureFilteredWithFlash()
         }
+    }
+
+    private fun getBitmapFromView(view: ImageView): Bitmap? {
+        return try {
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            view.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap) {
+        val filename = "captura_${System.currentTimeMillis()}.jpg"
+        val fos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+            }
+            contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)?.let {
+                contentResolver.openOutputStream(it)
+            }
+        } else {
+            val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val image = File(imagesDir, filename)
+            FileOutputStream(image)
+        }
+
+        fos?.use {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
+            showToast("Imagen guardada 📷")
+        } ?: showToast("Error al guardar imagen")
     }
 
     override fun onDestroy() {
