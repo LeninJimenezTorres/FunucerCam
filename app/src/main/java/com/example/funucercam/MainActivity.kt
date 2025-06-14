@@ -33,6 +33,8 @@ import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.camera.core.ImageProxy
 import java.io.File
@@ -300,7 +302,22 @@ class MainActivity : AppCompatActivity() {
             currentBitmap = saturated
             runOnUiThread {
                 binding.sharpenedView.setImageBitmap(saturated)
-                binding.sharpenedView.rotation = 90f
+                // binding.sharpenedView.rotation = 90f
+
+                binding.previewView.visibility = View.GONE
+                binding.sharpenedView.layoutParams = binding.sharpenedView.layoutParams.apply {
+                    width = ViewGroup.LayoutParams.MATCH_PARENT
+                    height = ViewGroup.LayoutParams.MATCH_PARENT
+                }
+                binding.sharpenedView.visibility = View.VISIBLE
+                binding.sharpenedView.scaleType = ImageView.ScaleType.CENTER_CROP
+                val rotated = Bitmap.createBitmap(
+                    saturated, 0, 0, saturated.width, saturated.height,
+                    Matrix().apply { postRotate(90f) },
+                    true
+                )
+                binding.sharpenedView.setImageBitmap(rotated)
+
             }
         }
     }
