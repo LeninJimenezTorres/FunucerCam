@@ -213,11 +213,19 @@ class MainActivity : AppCompatActivity() {
             cameraExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
+                    val rotationDegrees = image.imageInfo.rotationDegrees
                     val rawBitmap = image.toBitmap()
                     image.close()
 
                     val filtered = applyAllFilters(rawBitmap)
-                    saveBitmapToGallery(filtered)
+
+                    // Aplica la rotación real antes de guardar
+                    val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                    val rotated = Bitmap.createBitmap(
+                        filtered, 0, 0, filtered.width, filtered.height, matrix, true
+                    )
+
+                    saveBitmapToGallery(rotated)
                 }
 
                 override fun onError(exc: ImageCaptureException) {
@@ -301,22 +309,15 @@ class MainActivity : AppCompatActivity() {
 
             currentBitmap = saturated
             runOnUiThread {
-                binding.sharpenedView.setImageBitmap(saturated)
+//                binding.sharpenedView.setImageBitmap(saturated)
                 // binding.sharpenedView.rotation = 90f
 
-                binding.previewView.visibility = View.GONE
-                binding.sharpenedView.layoutParams = binding.sharpenedView.layoutParams.apply {
-                    width = ViewGroup.LayoutParams.MATCH_PARENT
-                    height = ViewGroup.LayoutParams.MATCH_PARENT
-                }
-                binding.sharpenedView.visibility = View.VISIBLE
-                binding.sharpenedView.scaleType = ImageView.ScaleType.CENTER_CROP
-                val rotated = Bitmap.createBitmap(
-                    saturated, 0, 0, saturated.width, saturated.height,
-                    Matrix().apply { postRotate(90f) },
-                    true
-                )
-                binding.sharpenedView.setImageBitmap(rotated)
+
+                binding.previewView.alpha = 0f
+                binding.previewView.isEnabled = false
+
+                binding.sharpenedView.scaleType = ImageView.ScaleType.FIT_CENTER
+                binding.sharpenedView.setImageBitmap(saturated)
 
             }
         }
