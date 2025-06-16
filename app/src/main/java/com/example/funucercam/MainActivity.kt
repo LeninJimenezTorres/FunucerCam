@@ -33,6 +33,8 @@ import androidx.camera.core.ImageAnalysis
 import android.graphics.YuvImage
 import android.os.Environment
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.camera.core.ImageProxy
 import java.io.File
@@ -211,11 +213,19 @@ class MainActivity : AppCompatActivity() {
             cameraExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
+                    val rotationDegrees = image.imageInfo.rotationDegrees
                     val rawBitmap = image.toBitmap()
                     image.close()
 
                     val filtered = applyAllFilters(rawBitmap)
-                    saveBitmapToGallery(filtered)
+
+                    // Aplica la rotación real antes de guardar
+                    val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                    val rotated = Bitmap.createBitmap(
+                        filtered, 0, 0, filtered.width, filtered.height, matrix, true
+                    )
+
+                    saveBitmapToGallery(rotated)
                 }
 
                 override fun onError(exc: ImageCaptureException) {
@@ -299,8 +309,12 @@ class MainActivity : AppCompatActivity() {
 
             currentBitmap = saturated
             runOnUiThread {
+                binding.previewView.alpha = 0f
+                binding.previewView.isEnabled = false
+
+                binding.sharpenedView.scaleType = ImageView.ScaleType.FIT_CENTER
                 binding.sharpenedView.setImageBitmap(saturated)
-                binding.sharpenedView.rotation = 90f
+
             }
         }
     }
