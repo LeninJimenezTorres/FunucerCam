@@ -309,10 +309,6 @@ class MainActivity : AppCompatActivity() {
 
             currentBitmap = saturated
             runOnUiThread {
-//                binding.sharpenedView.setImageBitmap(saturated)
-                // binding.sharpenedView.rotation = 90f
-
-
                 binding.previewView.alpha = 0f
                 binding.previewView.isEnabled = false
 
