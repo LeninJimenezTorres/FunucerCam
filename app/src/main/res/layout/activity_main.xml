@@ -70,6 +70,16 @@
             android:textColor="@android:color/white"
             android:layout_margin="8dp"/>
 
+        <!-- Dentro del LinearLayout con id bottomMenu -->
+        <Button
+            android:id="@+id/switchCameraButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔄 Cámara"
+            android:backgroundTint="@color/purple_500"
+            android:textColor="@android:color/white"
+            android:layout_margin="8dp"/>
+
     </LinearLayout>
 
 
