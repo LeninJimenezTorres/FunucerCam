@@ -1,11 +1,15 @@
 package com.example.funucercam.processing.image.extensions
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.camera.core.ImageProxy
 import java.io.ByteArrayOutputStream
 
@@ -43,4 +47,14 @@ fun ImageProxy.toBitmap(): Bitmap {
     }
 
     return Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+}
+
+fun showToast(message: String, context: Context) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    } else {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 }

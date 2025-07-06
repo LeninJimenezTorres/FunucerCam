@@ -21,13 +21,13 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/sharpenedView"
+            app:layout_constraintBottom_toTopOf="@id/processedView"
             app:layout_constraintHeight_percent="0.5"
             app:implementationMode="compatible"
             android:visibility="visible"/>
 
         <ImageView
-            android:id="@+id/sharpenedView"
+            android:id="@+id/processedView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="fitStart"
