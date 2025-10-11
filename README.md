@@ -18,7 +18,7 @@ This section highlights the dramatic improvement achieved by applying our real-t
 
 Check out the full app running live on a budget device, demonstrating high FPS and low latency processing:
 
-![FunucerCam Demo Video](https://img.youtube.com/vi/XodV7CZFk8k/0.jpg)](https://youtube.com/shorts/XodV7CZFk8k)
+[![FunucerCam Demo Video Thumbnail](https://img.youtube.com/vi/XodV7CZFk8k/0.jpg)](https://www.youtube.com/watch?v=XodV7CZFk8k)
 
 ---
 
