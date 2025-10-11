@@ -12,7 +12,7 @@ This section highlights the dramatic improvement achieved by applying our real-t
 
 | Original Picture | Enhanced Result |
 | :---: | :---: |
-| <img src="originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="results.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
+| <img src="gallery/originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="gallery/results.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
 
 ### 🎬 Application Video Demo
 
