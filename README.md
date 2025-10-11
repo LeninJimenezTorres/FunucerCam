@@ -18,7 +18,7 @@ This section highlights the dramatic improvement achieved by applying our real-t
 
 Check out the full app running live on a budget device, demonstrating high FPS and low latency processing:
 
-[Watch the Full Application Demo (app.mp4)](./app.mp4)
+[Watch the Full Application Demo (app.mp4)](gallery/app.mp4)
 
 ---
 
