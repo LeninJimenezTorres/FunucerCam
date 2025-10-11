@@ -4,6 +4,24 @@
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+---
+
+## ✨ Visual Demo: The Power of Shaders in Action
+
+This section highlights the dramatic improvement achieved by applying our real-time GPU processing pipeline compared to the raw output of a low-end Android camera.
+
+| Original Picture |                                                         Enhanced Result                                                         |
+| :---: |:-------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="gallery/originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="gallery/result.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
+
+### 🎬 Application Video Demo
+
+Check out the full app running live on a budget device, demonstrating high FPS and low latency processing:
+
+[![FunucerCam Demo Video Thumbnail](https://img.youtube.com/vi/XodV7CZFk8k/0.jpg)](https://www.youtube.com/watch?v=XodV7CZFk8k)
+
+---
+
 ## 🚀 Project Goal & Philosophy
 
 This project is a **self-initiated open-source endeavor** designed to serve as a **technical guide and foundational reference** for the Android developer community.
