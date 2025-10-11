@@ -2,6 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/black"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -18,19 +19,21 @@
         <androidx.camera.view.PreviewView
             android:id="@+id/previewView"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="match_parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/sharpenedView"
+            app:layout_constraintBottom_toTopOf="@id/processedView"
             app:layout_constraintHeight_percent="0.5"
             app:implementationMode="compatible"
             android:visibility="visible"/>
 
         <ImageView
-            android:id="@+id/sharpenedView"
+            android:id="@+id/processedView"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:scaleType="fitCenter"
+            android:layout_height="match_parent"
+            android:scaleType="fitStart"
             android:visibility="visible"
+            android:background="@color/black"
+            android:rotation="90"
             app:layout_constraintTop_toBottomOf="@id/previewView"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintHeight_percent="0.5"/>
@@ -48,11 +51,82 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHeight_percent="0.1">
 
-        <!-- Aquí puedes agregar otros botones del menú si los necesitas -->
+        <Button
+            android:id="@+id/captureButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📸 Capturar"
+            android:backgroundTint="@color/teal_200"
+            android:textColor="@android:color/white"
+            android:layout_margin="8dp"
+            />
+
+        <Button
+            android:id="@+id/flashToggleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔦 Flash"
+            android:backgroundTint="@color/teal_700"
+            android:textColor="@android:color/white"
+            android:layout_margin="8dp"/>
+
+        <!-- Dentro del LinearLayout con id bottomMenu -->
+        <Button
+            android:id="@+id/switchCameraButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔄 Cámara"
+            android:backgroundTint="@color/purple_500"
+            android:textColor="@android:color/white"
+            android:layout_margin="8dp"/>
 
     </LinearLayout>
 
-    <!-- Slider superpuesto (posición absoluta) -->
+
+
+    <!-- Slider de saturación -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/saturationSlider"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="8dp"
+        android:valueFrom="0f"
+        android:valueTo="2f"
+        android:value="1f"
+        app:layout_constraintWidth_percent="0.65"
+        app:layout_constraintBottom_toTopOf="@id/exposureSlider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Slider de exposición -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/exposureSlider"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="8dp"
+        android:valueFrom="-3f"
+        android:valueTo="3f"
+        android:value="0f"
+        app:layout_constraintWidth_percent="0.65"
+        app:layout_constraintBottom_toTopOf="@id/temperatureSlider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Slider de temperatura -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/temperatureSlider"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="8dp"
+        android:valueFrom="-40f"
+        android:valueTo="40f"
+        android:value="0f"
+        app:layout_constraintWidth_percent="0.65"
+        app:layout_constraintBottom_toTopOf="@id/sharpenSlider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Slider de nitidez -->
     <com.google.android.material.slider.Slider
         android:id="@+id/sharpenSlider"
         android:layout_width="0dp"
@@ -64,7 +138,6 @@
         app:layout_constraintWidth_percent="0.65"
         app:layout_constraintBottom_toTopOf="@id/bottomMenu"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="0.75"/> <!-- 25% desde el bottom (1 - 0.25 = 0.75) -->
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
