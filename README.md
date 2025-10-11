@@ -8,7 +8,7 @@
 
 ## ✨ Visual Demo: The Power of Shaders in Action
 
-This section highlights the dramatic improvement achieved by applying our real-time GPU processing pipeline compared to the raw output of a low-end Android camera.
+This section highlights the dramatic improvement achieved by applying our real-time with CPU shaders processing pipeline compared to the raw output of a low-end Android camera.
 
 | Original Picture |                                                         Enhanced Result                                                         |
 | :---: |:-------------------------------------------------------------------------------------------------------------------------------:|
