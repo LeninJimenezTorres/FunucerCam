@@ -10,9 +10,9 @@
 
 This section highlights the dramatic improvement achieved by applying our real-time GPU processing pipeline compared to the raw output of a low-end Android camera.
 
-| Original Picture | Enhanced Result |
-| :---: | :---: |
-| <img src="gallery/originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="gallery/results.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
+| Original Picture |                                                         Enhanced Result                                                         |
+| :---: |:-------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="gallery/originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="gallery/result.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
 
 ### 🎬 Application Video Demo
 
