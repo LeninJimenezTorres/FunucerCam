@@ -4,6 +4,24 @@
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+---
+
+## ✨ Visual Demo: The Power of Shaders in Action
+
+This section highlights the dramatic improvement achieved by applying our real-time GPU processing pipeline compared to the raw output of a low-end Android camera.
+
+| Original Picture | Enhanced Result |
+| :---: | :---: |
+| <img src="originalPicture.jpeg" width="450" alt="Original low-light image with noise and low dynamic range"> | <img src="results.jpeg" width="450" alt="Enhanced image with reduced noise, improved clarity, and better dynamic range"> |
+
+### 🎬 Application Video Demo
+
+Check out the full app running live on a budget device, demonstrating high FPS and low latency processing:
+
+[Watch the Full Application Demo (app.mp4)](./app.mp4)
+
+---
+
 ## 🚀 Project Goal & Philosophy
 
 This project is a **self-initiated open-source endeavor** designed to serve as a **technical guide and foundational reference** for the Android developer community.
