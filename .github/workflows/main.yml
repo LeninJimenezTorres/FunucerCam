@@ -35,7 +35,7 @@ jobs:
       with:
         name: Android Unit Tests Report
         path: '**/test-results/**/*.xml'
-        reporter: junit
+        reporter: java-junit
         fail-on-error: 'true'
     
     - name: Build Debug APK
