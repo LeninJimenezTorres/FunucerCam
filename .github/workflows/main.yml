@@ -30,10 +30,13 @@ jobs:
       run: ./gradlew testDebugUnitTest
       
     - name: Publish Test Results
-      uses: asadmansr/test-results-action@v1.4.0
+      uses: dorny/test-reporter@v1.9.1
       if: always()
       with:
-        files: '**/test-results/**/*.xml'
+        name: Android Unit Tests Report
+        path: '**/test-results/**/*.xml'
+        reporter: junit
+        fail-on-error: 'true'
     
     - name: Build Debug APK
       run: ./gradlew assembleDebug
